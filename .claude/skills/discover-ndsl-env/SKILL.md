@@ -75,11 +75,14 @@ Correctness runs use the CPU/numpy backend on login nodes. To exercise the GPU:
   not available" (gpu_a100 nodes are EPYC Rome):
   `salloc --partition=gpu_a100 --constraint=rome --ntasks=1 --gres=gpu:1 --mem-per-gpu=80G --time=1:00:00`
 - **Compute nodes are OFFLINE** — pip hits `pypi.org` NameResolutionError there.
-  Install cupy from a **login node** (network there; the nobackup venv is shared):
-  `module load nvhpc/23.9` → `nvcc --version` → `pip install cupy-cuda12x` (CUDA 12;
-  use `cupy-cuda11x` for a CUDA-11 module) → verify `python -c "import cupy"` (device
-  count 0 on login is fine). Then salloc + run.
-- On the A100 node, load a **CUDA module (`nvhpc/23.9`)** in addition to the CPU
+  Install cupy from a **login node** (network there; the nobackup venv is shared).
+  **CUDA module is under the `nvidia/` namespace, not bare `nvhpc/`:** use
+  `nvidia/nvhpc-byo-compiler/24.7` (nvcc + CUDA 12.5, keeps gcc as host) or
+  `nvidia/nvhpc-hpcx-cuda12/24.7`. So: `module load nvidia/nvhpc-byo-compiler/24.7`
+  → `nvcc --version` → `pip install cupy-cuda12x` (CUDA 12.5; use `cupy-cuda11x` only
+  for a CUDA-11 module) → verify `python -c "import cupy"` (device count 0 on login is
+  fine). Then salloc + run.
+- On the A100 node, load the **same `nvidia/nvhpc-*` module** in addition to the CPU
   re-entry block; `python -c "import cupy; print(cupy.cuda.runtime.getDeviceCount())"`
   should print ≥1.
 - The `rte_solver` GT4Py tests pick the backend from env `RTE_TEST_BACKEND` (unset =

@@ -7,7 +7,7 @@ description: >-
   not edits. Pre-loaded with the radiation call-path map and the GEOS<->PySHiELD
   fidelity distinctions so it knows where to look.
 tools: Read, Grep, Glob, Bash, WebFetch
-model: sonnet
+model: opus
 ---
 
 You scope and map the GEOS radiation code and its GT4Py port. You are READ-ONLY:

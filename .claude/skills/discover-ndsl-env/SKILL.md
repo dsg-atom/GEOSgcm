@@ -69,6 +69,27 @@ pip install -e .[test,ndsl,pyfv3]
 - Other NDSL knobs: `FV3_DACEMODE=BuildAndRun`, `NDSL_LITERAL_PRECISION=32|64`,
   `GT4PY_COMPILE_OPT_LEVEL`, `NDSL_LOGLEVEL`, `GT4PY_EXTRA_COMPILE_OPT_FLAGS`.
 
+## Running the tests on the GPU (A100) — gotchas
+Correctness runs use the CPU/numpy backend on login nodes. To exercise the GPU:
+- **Allocate with `--constraint=rome`** or it fails "Requested node configuration is
+  not available" (gpu_a100 nodes are EPYC Rome):
+  `salloc --partition=gpu_a100 --constraint=rome --ntasks=1 --gres=gpu:1 --mem-per-gpu=80G --time=1:00:00`
+- **Compute nodes are OFFLINE** — pip hits `pypi.org` NameResolutionError there.
+  Install cupy from a **login node** (network there; the nobackup venv is shared):
+  `module load nvhpc/23.9` → `nvcc --version` → `pip install cupy-cuda12x` (CUDA 12;
+  use `cupy-cuda11x` for a CUDA-11 module) → verify `python -c "import cupy"` (device
+  count 0 on login is fine). Then salloc + run.
+- On the A100 node, load a **CUDA module (`nvhpc/23.9`)** in addition to the CPU
+  re-entry block; `python -c "import cupy; print(cupy.cuda.runtime.getDeviceCount())"`
+  should print ≥1.
+- The `rte_solver` GT4Py tests pick the backend from env `RTE_TEST_BACKEND` (unset =
+  CPU): `RTE_TEST_BACKEND=gt:gpu pytest tests/rte_solver/test_lw_solver_gt4py.py -q`
+  (`dace:gpu` may also need `FV3_DACEMODE=BuildAndRun`). Run ONE test first — the first
+  GPU run triggers a slow CUDA stencil compile. Likely snag: GPU outputs are cupy
+  arrays, so `assert_allclose` vs pyRTE numpy may need `cupy.asnumpy()`.
+- A green GPU run proves portability/correctness on the A100, NOT model speedup
+  (that needs CFFI integration + residency).
+
 ## Coefficient files
 Not bundled in the pyrte_rrtmgp wheel — downloaded on first use from GitHub to the
 XDG cache. GEOS L91 uses **LW_G256 + SW_G224** (+ `*_BND` cloud). Enum→file:

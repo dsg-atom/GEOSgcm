@@ -91,6 +91,17 @@ Correctness runs use the CPU/numpy backend on login nodes. To exercise the GPU:
 - **`export CUPY_CACHE_DIR=/discover/nobackup/$USER/fork-a/.cupy`** before a GPU run —
   cupy's compiled-kernel cache defaults to `~/.cupy` (home quota) → `Errno 122 Disk
   quota exceeded` when it compiles a CUDA kernel. GPU analog of the `XDG_CACHE_HOME` fix.
+- **`export CUDA_HOME=$(dirname $(dirname $(which nvcc)))` and `export CUDA_PATH=$CUDA_HOME`**
+  — gt4py/dace compile the generated `.cu` with nvcc but default to the hardcoded
+  `/usr/local/cuda/bin/nvcc` (absent on Discover) → `FileNotFoundError`. Point them at
+  the nvhpc toolkit root (from `which nvcc`).
+- **Test code must move data host↔device on the GPU backend:** `view[:] = <numpy>`
+  raises "non-scalar numpy.ndarray cannot be used for fill" — wrap inputs with
+  `cupy.asarray` and outputs with `cupy.asnumpy` (no-ops on CPU). See the `_to_dev`/
+  `_to_host` helpers in `tests/gas_optics/test_interp_tp.py`.
+- **PROVEN 2026-10-06:** with all of the above, `RTE_TEST_BACKEND=gt:gpu pytest
+  tests/gas_optics/test_interp_tp.py` → `1 passed` on an A100 (CUDA compiled + ran +
+  matched the numpy oracle). Real GPU execution, correctness — not speed.
 - The backend arg is a **Backend OBJECT**, not a name string: ndsl.config exposes
   `backend_cpu` / `backend_gpu` / `backend_python`. The tests select `backend_gpu`
   when `RTE_TEST_BACKEND` is set (passing the string `"gt:gpu"` raises "Backend gt:gpu

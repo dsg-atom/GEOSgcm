@@ -74,8 +74,11 @@ Correctness runs use the CPU/numpy backend on login nodes. To exercise the GPU:
 - **Allocate with `--constraint=rome`** or it fails "Requested node configuration is
   not available" (gpu_a100 nodes are EPYC Rome):
   `salloc --partition=gpu_a100 --constraint=rome --ntasks=1 --gres=gpu:1 --mem-per-gpu=80G --time=1:00:00`
-- **Compute nodes are OFFLINE** — pip hits `pypi.org` NameResolutionError there.
-  Install cupy from a **login node** (network there; the nobackup venv is shared).
+- **Compute nodes are OFFLINE** — NO network at all. Every network op fails there:
+  `pip install`, **`git pull`/`git fetch`**, and the pyRTE coeff download. Do ALL of
+  them from a **login node** (network there; `/discover/nobackup` — venv AND the clone
+  — is shared, so a login-node `git pull`/`pip install` is immediately visible on the
+  A100 node; just RUN there, no re-pull). For cupy specifically:
   **CUDA module is under the `nvidia/` namespace, not bare `nvhpc/`:** use
   `nvidia/nvhpc-byo-compiler/24.7` (nvcc + CUDA 12.5, keeps gcc as host) or
   `nvidia/nvhpc-hpcx-cuda12/24.7`. So: `module load nvidia/nvhpc-byo-compiler/24.7`

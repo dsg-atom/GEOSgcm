@@ -88,6 +88,13 @@ Correctness runs use the CPU/numpy backend on login nodes. To exercise the GPU:
 - On the A100 node, load the **same `nvidia/nvhpc-*` module** in addition to the CPU
   re-entry block; `python -c "import cupy; print(cupy.cuda.runtime.getDeviceCount())"`
   should print ≥1.
+- **`export CUPY_CACHE_DIR=/discover/nobackup/$USER/fork-a/.cupy`** before a GPU run —
+  cupy's compiled-kernel cache defaults to `~/.cupy` (home quota) → `Errno 122 Disk
+  quota exceeded` when it compiles a CUDA kernel. GPU analog of the `XDG_CACHE_HOME` fix.
+- The backend arg is a **Backend OBJECT**, not a name string: ndsl.config exposes
+  `backend_cpu` / `backend_gpu` / `backend_python`. The tests select `backend_gpu`
+  when `RTE_TEST_BACKEND` is set (passing the string `"gt:gpu"` raises "Backend gt:gpu
+  is not of class Backend"). `backend_gpu` is DaCe-orchestrated on the GPU.
 - The `rte_solver` GT4Py tests pick the backend from env `RTE_TEST_BACKEND` (unset =
   CPU): `RTE_TEST_BACKEND=gt:gpu pytest tests/rte_solver/test_lw_solver_gt4py.py -q`
   (`dace:gpu` may also need `FV3_DACEMODE=BuildAndRun`). Run ONE test first — the first

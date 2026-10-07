@@ -216,9 +216,9 @@ sis2:
 
 GEOSradiation_GridComp:
   local: ./src/Components/@GEOSgcm_GridComp/GEOSagcm_GridComp/GEOSphysics_GridComp/@GEOSradiation_GridComp
-  remote: https://github.com/GEOS-ESM/GEOSradiation_GridComp.git
-  tag: v2.0.0
-  develop: develop
+  remote: https://github.com/dsg-atom/GEOSradiation_GridComp.git
+  branch: main
+  develop: main
 
 RRTMGP:
   local: ./src/Components/@GEOSgcm_GridComp/GEOSagcm_GridComp/GEOSphysics_GridComp/@GEOSradiation_GridComp/GEOS_RadiationShared/@RRTMGP

@@ -174,45 +174,12 @@ GEOS_OceanGridComp:
   tag: v3.10.0
   develop: develop
 
-mom:
-  local: ./src/Components/@GEOSgcm_GridComp/GEOSogcm_GridComp/@GEOS_OceanGridComp/MOM_GEOS5PlugMod/@mom
-  remote: https://github.com/GEOS-ESM/MOM5.git
-  tag: geos/5.1.0+2.1.0
-  develop: geos5
-
-mom6:
-  local: ./src/Components/@GEOSgcm_GridComp/GEOSogcm_GridComp/@GEOS_OceanGridComp/MOM6_GEOSPlug/@mom6
-  remote: https://github.com/GEOS-ESM/MOM6.git
-  tag: geos/v3.8
-  develop: geos/main
-  recurse_submodules: true
-
-mit:
-  local: ./src/Components/@GEOSgcm_GridComp/GEOSogcm_GridComp/@GEOS_OceanGridComp/MIT_GEOS5PlugMod/@mit
-  remote: https://github.com/GEOS-ESM/MITgcm.git
-  tag: checkpoint68o
-
-cice6:
-  local: ./src/Components/@GEOSgcm_GridComp/GEOSogcm_GridComp/GEOSseaice_GridComp/CICE_GEOSPlug/@cice6
-  remote: https://github.com/GEOS-ESM/CICE.git
-  tag: geos/v0.2.0
-  # GEOS currently is not in sync with mainline CICE development, so we point to a specific release branch for now.
-  # Once we are in sync with mainline CICE development, we can point to the develop branch.
-  #develop: geos/develop
-  develop: geos/release/v0
-  ignore_submodules: true
-
-icepack:
-  local: ./src/Components/@GEOSgcm_GridComp/GEOSogcm_GridComp/GEOSseaice_GridComp/CICE_GEOSPlug/@cice6/icepack
-  remote: https://github.com/GEOS-ESM/Icepack.git
-  tag: geos/v0.4.0
-  develop: geos/develop
-
-sis2:
-  local: ./src/Components/@GEOSgcm_GridComp/GEOSogcm_GridComp/GEOSseaice_GridComp/CICE_GEOSPlug/@sis2
-  remote: https://github.com/GEOS-ESM/SIS2.git
-  tag: geos/v0.0.1
-  develop: dev/gfdl
+# Ocean and sea-ice model plugs are intentionally omitted on this branch so a
+# fresh `mepo clone` stays small (fewer files) for the atmosphere-only radiation
+# build. These are not used by an AMIP/data-ocean run. To restore them, copy the
+# entries back from GEOS-ESM/GEOSgcm components.yaml.
+#   mom (MOM5), mom6 (MOM6, + submodules), mit (MITgcm),
+#   cice6 (CICE), icepack (Icepack), sis2 (SIS2)
 
 GEOSradiation_GridComp:
   local: ./src/Components/@GEOSgcm_GridComp/GEOSagcm_GridComp/GEOSphysics_GridComp/@GEOSradiation_GridComp

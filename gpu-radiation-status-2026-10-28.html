@@ -1,0 +1,215 @@
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Is GPU radiation faster?</title>
+<style>
+  /* Layout: single reading column, utilitarian status memo; one blue accent,
+     semantic green/amber for "works" vs "gap"; mono for all measured figures. */
+  :root {
+    --bg: #f6f8fb;
+    --surface: #ffffff;
+    --ink: #1a2230;
+    --muted: #5c6878;
+    --line: #e4e8ee;
+    --accent: #2f6fd6;
+    --good: #2e7d5b;
+    --warn: #a9701f;
+    --mono-bg: #eef2f7;
+    --display: "IBM Plex Sans", system-ui, sans-serif;
+    --body: "IBM Plex Sans", system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f141b; --surface: #171e28; --ink: #e6ebf2; --muted: #93a0b1;
+      --line: #273040; --accent: #5b9bf0; --good: #4cbd8a; --warn: #d79a4e;
+      --mono-bg: #11171f; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0f141b; --surface: #171e28; --ink: #e6ebf2; --muted: #93a0b1;
+    --line: #273040; --accent: #5b9bf0; --good: #4cbd8a; --warn: #d79a4e;
+    --mono-bg: #11171f; color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: var(--body); line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap {
+    max-width: 50rem; margin: 0 auto;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: clamp(2rem, 6vw, 4rem);
+  }
+  .eyebrow {
+    font-family: var(--mono); font-size: .72rem; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase; color: var(--accent);
+    margin: 0 0 .9rem;
+  }
+  h1 {
+    font-family: var(--display); font-weight: 700;
+    font-size: clamp(1.9rem, 6vw, 2.9rem); line-height: 1.1;
+    letter-spacing: -.02em; text-wrap: balance; margin: 0 0 1rem;
+  }
+  .dek {
+    font-size: clamp(1.05rem, 2.6vw, 1.2rem); color: var(--muted);
+    max-width: 42rem; margin: 0;
+  }
+  .asof {
+    font-family: var(--mono); font-size: .8rem; font-weight: 500;
+    letter-spacing: .04em; color: var(--muted); margin: 1.1rem 0 0;
+  }
+  .rule { height: 1px; background: var(--line); border: 0; margin: 2.6rem 0; }
+  h2 {
+    font-family: var(--display); font-weight: 600;
+    font-size: 1.28rem; letter-spacing: -.01em; margin: 0 0 1rem;
+  }
+  p { margin: 0 0 1rem; max-width: 42rem; }
+  .lede { font-size: 1.06rem; }
+  strong { font-weight: 600; }
+  .mono { font-family: var(--mono); }
+
+  /* verdict pair */
+  .verdict { display: grid; gap: .9rem; grid-template-columns: 1fr 1fr; }
+  @media (max-width: 440px) { .verdict { grid-template-columns: 1fr; } }
+  .v {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 12px; padding: 1.1rem 1.2rem;
+  }
+  .v .tag {
+    font-family: var(--mono); font-size: .7rem; font-weight: 600;
+    letter-spacing: .1em; text-transform: uppercase; margin: 0 0 .5rem;
+    display: inline-flex; align-items: center; gap: .45rem;
+  }
+  .v.ok .tag { color: var(--good); }
+  .v.gap .tag { color: var(--warn); }
+  .dot { width: .6rem; height: .6rem; border-radius: 50%; background: currentColor; }
+  .v .big { font-family: var(--display); font-weight: 700; font-size: 1.15rem; margin: 0 0 .35rem; }
+  .v p { font-size: .92rem; color: var(--muted); margin: 0; }
+
+  /* chart */
+  .chart { display: grid; gap: .85rem; margin: .4rem 0 .6rem; }
+  .row { display: grid; grid-template-columns: 9.5rem 1fr; align-items: center; gap: .9rem; }
+  @media (max-width: 440px) { .row { grid-template-columns: 1fr; gap: .25rem; } }
+  .row .name { font-size: .9rem; font-weight: 500; min-width: 0; }
+  .row .name small { display: block; color: var(--muted); font-weight: 400; font-size: .78rem; }
+  .bar-track { position: relative; display: flex; align-items: center; gap: .6rem; min-width: 0; }
+  .bar {
+    height: 1.7rem; border-radius: 5px; background: var(--accent);
+    min-width: 2px; flex: 0 0 auto;
+  }
+  .bar.cpu { background: var(--warn); }
+  .bar.ref { background: var(--good); }
+  .bar-val { font-family: var(--mono); font-size: .9rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* table */
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; }
+  table { border-collapse: collapse; width: 100%; font-size: .92rem; }
+  caption { caption-side: bottom; text-align: left; color: var(--muted); font-size: .82rem; padding: .7rem .2rem 0; }
+  th, td { text-align: left; padding: .7rem .9rem; border-bottom: 1px solid var(--line); }
+  thead th { font-family: var(--mono); font-size: .72rem; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; text-align: right; }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--line);
+    border-left: 3px solid var(--accent); border-radius: 10px;
+    padding: 1rem 1.2rem; margin: 1.2rem 0;
+  }
+  .callout p:last-child { margin-bottom: 0; }
+
+  ul.clean { margin: 0 0 1rem; padding: 0; list-style: none; display: grid; gap: .6rem; max-width: 42rem; }
+  ul.clean li { padding-left: 1.5rem; position: relative; }
+  ul.clean li::before { content: ""; position: absolute; left: .1rem; top: .62em; width: .5rem; height: .5rem; border-radius: 2px; background: var(--accent); }
+  .foot { color: var(--muted); font-size: .82rem; margin-top: 2.6rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+  .foot code { font-family: var(--mono); background: var(--mono-bg); padding: .08em .4em; border-radius: 4px; font-size: .92em; }
+</style>
+
+<div class="wrap">
+  <p class="eyebrow">GEOS · GPU radiation port</p>
+  <h1>Is GPU radiation faster?</h1>
+  <p class="dek">The atmospheric radiation code now runs on the A100 GPU and gives correct results. It is not yet faster. Here is the measurement, why, and what a real speedup would take.</p>
+  <p class="asof">Status as of 28 October 2026</p>
+
+  <hr class="rule">
+
+  <div class="verdict">
+    <div class="v ok">
+      <p class="tag"><span class="dot"></span>Works</p>
+      <p class="big">Correct on the GPU</p>
+      <p>The full radiation calculation runs on the A100 and matches the CPU result to machine precision. Validated end to end.</p>
+    </div>
+    <div class="v gap">
+      <p class="tag"><span class="dot"></span>Not yet worth it</p>
+      <p class="big">1.3× over the CPU</p>
+      <p>About 90 seconds per call on the GPU versus 120 on the CPU — and both are roughly 100× slower than the model's current radiation.</p>
+    </div>
+  </div>
+
+  <hr class="rule">
+
+  <h2>The measurement</h2>
+  <p>One radiation call, on the workload a single processor handles in the model: 4,050 columns, 91 layers. Same machine for both new runs; compilation excluded.</p>
+
+  <div class="chart" role="img" aria-label="Seconds per radiation call: current Fortran under 1 second, new GPU code 90 seconds, new CPU code 120 seconds.">
+    <div class="row">
+      <div class="name">Current Fortran<small>in the model today</small></div>
+      <div class="bar-track"><span class="bar ref" style="width:0.8%"></span><span class="bar-val">&lt; 1 s</span></div>
+    </div>
+    <div class="row">
+      <div class="name">New code · GPU<small>A100</small></div>
+      <div class="bar-track"><span class="bar" style="width:75%"></span><span class="bar-val">90 s</span></div>
+    </div>
+    <div class="row">
+      <div class="name">New code · CPU<small>same node</small></div>
+      <div class="bar-track"><span class="bar cpu" style="width:100%"></span><span class="bar-val">120 s</span></div>
+    </div>
+  </div>
+
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>Path</th><th style="text-align:right">Per call</th><th style="text-align:right">vs. Fortran</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Current Fortran radiation (RRTMG)</td><td class="num">&lt; 1 s</td><td class="num">—</td></tr>
+        <tr><td>New GT4Py code, CPU backend</td><td class="num">120 s</td><td class="num">~100× slower</td></tr>
+        <tr><td>New GT4Py code, GPU backend</td><td class="num">90 s</td><td class="num">~100× slower</td></tr>
+      </tbody>
+      <caption>Moving data in and out of the GPU accounts for ~0.2 s of the 90 — it is not where the time goes.</caption>
+    </table>
+  </div>
+
+  <hr class="rule">
+
+  <h2>Why it is slow</h2>
+  <p class="lede">The code walks through 256 narrow slices of the spectrum one at a time, in a loop on the ordinary processor.</p>
+  <p>Each pass does a small amount of arithmetic and a large amount of fixed setup: gathering inputs, handing a small job to the backend, collecting the result. That loop runs on the CPU in <strong>both</strong> versions. The GPU only speeds up the arithmetic inside each pass, which is the small part, so the GPU version spends most of its time idle, waiting on the loop that feeds it.</p>
+
+  <div class="callout">
+    <p>This also explains why the two backends are so close. They share the same ~90-second loop overhead on the CPU; the GPU just removes about 30 seconds of arithmetic on top of it. That ceiling is set by the structure of the code, not by the hardware.</p>
+  </div>
+
+  <h2>What is <em>not</em> the problem</h2>
+  <ul class="clean">
+    <li><strong>Data transfer.</strong> Moving arrays between the processor and the GPU costs about 0.2 of the 90 seconds. The bridge boundary is not the bottleneck.</li>
+    <li><strong>GPU settings.</strong> Tuning block sizes and similar knobs would move the needle slightly, not close a 100× gap.</li>
+  </ul>
+
+  <hr class="rule">
+
+  <h2>What a real speedup needs</h2>
+  <p>Compute all 256 spectral slices together on the GPU in one pass, instead of 256 separate passes driven from the processor. That removes the per-slice setup and finally gives the GPU enough work to do at once to be worth using.</p>
+  <p>It is a substantial rewrite of the gas-optics and solver code, but the target is well defined and the correctness work already done carries straight over — the answers are known to be right, so the rewrite only has to reproduce them faster.</p>
+
+  <h2>Where this leaves us</h2>
+  <ul class="clean">
+    <li><strong>Done:</strong> the radiation port runs on the GPU and is numerically correct.</li>
+    <li><strong>Open:</strong> whether to invest in the restructuring that turns "runs on the GPU" into "faster on the GPU."</li>
+  </ul>
+
+  <p class="foot">
+    Figures from a single-processor timing at one rank's workload on a <code>gpu_a100</code> node (best case: one rank, one GPU, no sharing). In the full 48-rank model, twelve ranks share each GPU, so in-model timings would be higher. Harness: <code>bench_step_radiation.py</code>.
+  </p>
+</div>

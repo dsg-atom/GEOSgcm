@@ -3,9 +3,8 @@
 **As of 29 October 2026**
 
 Update to the [28 October status](gpu-radiation-status-2026-10-28.md). Since then
-the radiation port went from correct-but-slow to measurably faster, through two
-targeted changes. It is now 6.5× faster than the first GPU measurement, with one
-large lever left.
+the radiation port went from correct-but-slow to measurably faster, through a
+series of targeted changes. It is now 17× faster than the first GPU measurement.
 
 ## Trajectory
 
@@ -16,8 +15,9 @@ One radiation call, per rank (4,050 columns, 91 layers, one A100):
 | First GPU measurement (28 Oct) | 90 s | — |
 | Gas-optics gathers moved to the GPU | 20.5 s | 4.4× |
 | Cloud optics moved to the device | 13.8 s | 1.5× |
+| Stop recomputing gas optics we discard | 5.3 s | 2.6× |
 
-6.5× faster overall. Both changes were validated to machine precision against the
+17× faster overall. Each change was validated to machine precision against the
 pyRTE reference on the GPU before being measured.
 
 ## What changed, and why
@@ -28,71 +28,69 @@ was wrong: the solver loop costs 0.24 s, so the loop was never the problem. The
 time was in the coefficient gathers — large table lookups that were running on
 the CPU.
 
-The two changes since then moved those gathers, and the cloud-optics equivalents,
-from the CPU onto the GPU. The arrays now live on the device, so the lookups and
-the per-slice work happen there instead of on the processor. Nothing about the
-numbers changed — the same validated answers, computed where the data already is.
+The first two changes moved those gathers, and the cloud-optics equivalents,
+from the CPU onto the GPU. The third, and largest single win, removed pure
+redundancy: the code was calling the reference library to compute the full gas
+optics in Fortran on every step, only to use the shape of its output and
+overwrite the numbers with its own. That output container is fixed for a given
+grid, so it is now built once and reused, and only the interpolation we actually
+use runs each step. Nothing about the numbers changed — the same validated
+answers, computed where the data already is and without the discarded work.
 
-## Where the 13.8 s goes now
+(One idea along the way was ruled out by measurement: collapsing the 256
+spectral slices into a few large GPU kernels. It was built, correct, and made no
+difference — the GPU kernels were never the bottleneck.)
 
-A profile of one call:
+## Where the 5.3 s goes now
 
-| Component | per call |
-|---|---:|
-| Gas optics | ~12.2 s |
-| The four flux solves | ~0.9 s |
-| Writing results back + marshalling | ~0.7 s |
-
-Gas optics is now ~88% of the time — and, as a deeper profile showed, it is
-barely computing. The GPU kernels total under half a second. The time is host
-overhead, and most of it is work we throw away (see below).
-
-## What the remaining cost actually is
-
-The plan expected the remaining cost to be the overhead of launching a separate
-GPU batch for each of the 256 spectral slices, and proposed collapsing those into
-a few large kernels. That was built for the major-gas step and measured: it was
-numerically correct and made **no difference** to the time. So the launches were
-never the bottleneck.
-
-A full profile then showed where the ~13 s goes:
+With the redundant Fortran gone, the remaining time is the port's own code, and
+no single piece dominates:
 
 | Source | per call |
 |---|---:|
-| pyRTE's own Fortran gas optics (run, then discarded) | ~5–6 s |
-| xarray reshaping (folding data in and out of the solver's layout) | ~4 s |
-| copying arrays between processor and GPU | ~2 s |
-| the actual GPU kernels | < 0.5 s |
+| copying arrays between processor and GPU | ~2.1 s |
+| GT4Py per-call bookkeeping + the minor-gas loop | ~1.7 s |
+| xarray reshaping (in and out of the solver's layout) | ~0.9 s |
+| the four flux solves | ~0.9 s |
+| the interpolation we need | ~0.2 s |
+| the actual GPU kernels | ~0.25 s |
 
-The single largest piece is pure redundancy: the code calls the reference library
-to compute the gas optics — the full Fortran calculation — only to use the shape
-of its output, then overwrites the numbers with its own. The reference
-interpolation (which we do need) runs twice as a result.
+The largest item is a round-trip: gas optics computes on the GPU, the result is
+copied to host to sit in the reference library's data container, and the solver
+then copies it back to the GPU.
 
-## The remaining lever
+## Remaining levers
 
-Stop recomputing what we discard. Run the reference computation once to get the
-output container, reuse that container on later steps, and keep only the one
-interpolation call we actually use. That removes most of the ~5–6 s, with the
-xarray reshaping and the host/GPU copies as smaller follow-ons. It is host-side
-work, not GPU work — the GPU core is already fast. This is the path toward the
-native Fortran speed (well under 1 second per call).
+These are bigger and harder than the changes so far, with smaller individual
+payoffs. Recorded for when the work resumes:
+
+- **Keep the optics on the GPU between gas optics and the solver (~2 s).** Stop
+  routing the result through the host-side container; hand it to the solver
+  on-device.
+- **Batch the minor-gas loop (~1 s).** Collapse its ~1,900 small kernel calls
+  into a few — harder than the others, because each minor gas spans an irregular
+  set of spectral slices.
+- **Speed up the xarray folding (~0.9 s)** in and out of the solver's layout.
+
+Together these would bring a call into the low seconds, approaching native
+Fortran (well under 1 second). None is a quick change.
 
 ## Status
 
-- **Done and validated:** the port runs correctly on the GPU and is 6.5× faster
-  than the first GPU measurement, by moving the gas-optics and cloud-optics
-  gathers onto the device.
-- **Learned:** the remaining cost is host-side, dominated by the reference
-  library recomputing gas optics we discard — not GPU work, and not the
-  spectral-slice launches the plan assumed (that change was built, measured, and
-  made no difference).
-- **Remaining:** remove that recomputation (and the smaller reshaping and copy
-  overheads). Still ~14× slower than native until it lands.
+- **Done and validated:** the port runs correctly on the GPU and is 17× faster
+  than the first GPU measurement — by moving the gas-optics and cloud-optics
+  gathers onto the device and building the reference output container once
+  instead of recomputing (and discarding) it every step.
+- **Now:** 5.3 s/call, ~5× native Fortran. The cost is the port's own host-side
+  overhead, no longer anything the GPU is doing.
+- **Remaining:** three bigger refactors — data residency between gas optics and
+  the solver, minor-gas loop batching, and the xarray folding — to approach
+  native. Each is a larger change with a smaller payoff; this is a consolidation
+  point.
 
 ---
 
 *Per-rank timing on a `gpu_a100` node (best case: one rank, one GPU). Harnesses:
 `bench_step_radiation.py`, `profile_step_radiation.py` in dsg-atom/PySHiELD.
-Changes: gas-optics gather-on-GPU and cloud-optics device convert on
-dsg-atom/PySHiELD develop.*
+Changes on dsg-atom/PySHiELD develop: gas-optics gather-on-GPU, cloud-optics
+device convert, and compute-container reuse.*

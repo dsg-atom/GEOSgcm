@@ -43,32 +43,52 @@ A profile of one call:
 | The four flux solves | ~0.9 s |
 | Writing results back + marshalling | ~0.7 s |
 
-Gas optics is now ~88% of the time — and it is not computing. The GPU kernels are
-microseconds each. The cost is the overhead of launching thousands of small
-kernels, a separate batch for each of the 256 spectral slices. Moving data to and
-from the GPU is negligible (~0.04 s).
+Gas optics is now ~88% of the time — and, as a deeper profile showed, it is
+barely computing. The GPU kernels total under half a second. The time is host
+overhead, and most of it is work we throw away (see below).
+
+## What the remaining cost actually is
+
+The plan expected the remaining cost to be the overhead of launching a separate
+GPU batch for each of the 256 spectral slices, and proposed collapsing those into
+a few large kernels. That was built for the major-gas step and measured: it was
+numerically correct and made **no difference** to the time. So the launches were
+never the bottleneck.
+
+A full profile then showed where the ~13 s goes:
+
+| Source | per call |
+|---|---:|
+| pyRTE's own Fortran gas optics (run, then discarded) | ~5–6 s |
+| xarray reshaping (folding data in and out of the solver's layout) | ~4 s |
+| copying arrays between processor and GPU | ~2 s |
+| the actual GPU kernels | < 0.5 s |
+
+The single largest piece is pure redundancy: the code calls the reference library
+to compute the gas optics — the full Fortran calculation — only to use the shape
+of its output, then overwrites the numbers with its own. The reference
+interpolation (which we do need) runs twice as a result.
 
 ## The remaining lever
 
-Compute all 256 spectral slices in a few large kernels instead of 256 small ones.
-That collapses the launch overhead that now dominates. It is the batching
-described in the plan, and the profile confirms gas optics is where it pays — the
-solver, when measured, did not need it.
-
-This is the larger piece of work, roughly 1–2 weeks: the gas-optics coefficient
-gathers have to be reworked to produce all slices at once, and the minor-gas
-contributions use irregular slice ranges that do not batch cleanly. It is the
-only remaining path to close most of the gap to the native Fortran radiation
-(well under 1 second per call).
+Stop recomputing what we discard. Run the reference computation once to get the
+output container, reuse that container on later steps, and keep only the one
+interpolation call we actually use. That removes most of the ~5–6 s, with the
+xarray reshaping and the host/GPU copies as smaller follow-ons. It is host-side
+work, not GPU work — the GPU core is already fast. This is the path toward the
+native Fortran speed (well under 1 second per call).
 
 ## Status
 
 - **Done and validated:** the port runs correctly on the GPU and is 6.5× faster
-  than the first GPU measurement, through moving the gas-optics and cloud-optics
+  than the first GPU measurement, by moving the gas-optics and cloud-optics
   gathers onto the device.
-- **Remaining:** the gas-optics slice batching, to remove the launch overhead
-  that is now ~88% of the per-call cost. Still ~14× slower than native until that
-  lands.
+- **Learned:** the remaining cost is host-side, dominated by the reference
+  library recomputing gas optics we discard — not GPU work, and not the
+  spectral-slice launches the plan assumed (that change was built, measured, and
+  made no difference).
+- **Remaining:** remove that recomputation (and the smaller reshaping and copy
+  overheads). Still ~14× slower than native until it lands.
 
 ---
 

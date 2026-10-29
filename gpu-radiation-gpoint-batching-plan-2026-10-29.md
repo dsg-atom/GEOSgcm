@@ -41,10 +41,19 @@ it:
 
 Both validated to machine precision against pyRTE on the GPU. See the
 [29 October status](gpu-radiation-status-2026-10-29.md) for the trajectory and
-the profile. What remains is the batching described further down — a profile
-confirms gas optics is now ~88% of the 13.8 s and that its cost is launch
-overhead, so collapsing its 256-slice loop into a few large kernels is the next
-and last big lever. The section below is the standing plan for that work.
+the profile.
+
+**The batching below was then built for the major-gas step and measured — and it
+made no difference.** It was numerically correct but gave no speedup, which means
+the spectral-slice launches were never the bottleneck. A full profile showed the
+remaining ~13 s is host overhead, dominated by the reference library recomputing
+the gas optics we discard (~5–6 s), xarray reshaping (~4 s), and host/GPU copies
+(~2 s); the GPU kernels total under half a second. So the next lever is **not**
+the batching in the section below — it is removing that recomputation (run the
+reference compute once for its output container, reuse it, keep only the one
+interpolation we use). The batching section is retained as the record of an
+approach that was tried and ruled out by measurement; it is not the plan going
+forward.
 
 ## Revised lever: run the gas-optics gathers on the GPU
 

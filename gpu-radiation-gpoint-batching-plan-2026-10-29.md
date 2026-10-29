@@ -31,6 +31,21 @@ not do.
 The prototype cost less than its 1–2 day budget and ruled out a 3–6 week refactor
 built on the wrong premise. That is the result, not a detour.
 
+## Progress (29 October, later the same day)
+
+The gather-on-GPU lever below was built and measured, and a cheap follow-on with
+it:
+
+- Gas-optics gathers moved to the GPU: **90 s → 20.5 s** per call (4.4×).
+- Cloud optics moved to the device (same pattern): **20.5 s → 13.8 s** (1.5×).
+
+Both validated to machine precision against pyRTE on the GPU. See the
+[29 October status](gpu-radiation-status-2026-10-29.md) for the trajectory and
+the profile. What remains is the batching described further down — a profile
+confirms gas optics is now ~88% of the 13.8 s and that its cost is launch
+overhead, so collapsing its 256-slice loop into a few large kernels is the next
+and last big lever. The section below is the standing plan for that work.
+
 ## Revised lever: run the gas-optics gathers on the GPU
 
 The fix is narrower than folding the domain, and it does not touch the stencils.
